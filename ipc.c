@@ -30,31 +30,31 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include <SDL.h>                         /* SDL_GetTicks */
+#include <SDL.h> /* SDL_GetTicks */
 
 #include "ipc.h"
 #include "mcs48.h"
 
-#define UNITS_PER_IPC_CYCLE   225
-#define UNITS_PER_SECOND      165000000u
-#define UNITS_PER_MS          (UNITS_PER_SECOND / 1000u)
+#define UNITS_PER_IPC_CYCLE 225
+#define UNITS_PER_SECOND 165000000u
+#define UNITS_PER_MS (UNITS_PER_SECOND / 1000u)
 /* Longest catch-up in one call (one second): avoids stalls after long pauses */
-#define MAX_CATCHUP_UNITS     ((uint64_t)UNITS_PER_SECOND)
+#define MAX_CATCHUP_UNITS ((uint64_t)UNITS_PER_SECOND)
 
-extern uint64_t ql_cycles;                       /* iexl_general.c */
-extern void ql_set_ipc_ipl(int lines);         /* general.c */
+extern uint64_t ql_cycles; /* iexl_general.c */
+extern void ql_set_ipc_ipl(int lines); /* general.c */
 
-static int      lle_active = 0;
-static uint8_t  rom[2048];
-static mcs48_t  ipc;
-static uint64_t ipc_units;               /* time reached by the 8049 */
+static int lle_active = 0;
+static uint8_t rom[2048];
+static mcs48_t ipc;
+static uint64_t ipc_units; /* time reached by the 8049 */
 
 /* IPC clock: the current frame in 68008 cycles and in IPC time */
-static uint64_t frame_start_cycles = 0;  /* ql_cycles at the last sync */
-static uint64_t frame_start_units = 0;   /* IPC time at the last sync */
-static uint64_t frame_len_cycles = 150000;  /* 0: unlimited speed */
+static uint64_t frame_start_cycles = 0; /* ql_cycles at the last sync */
+static uint64_t frame_start_units = 0; /* IPC time at the last sync */
+static uint64_t frame_len_cycles = 150000; /* 0: unlimited speed */
 static uint64_t frame_units = UNITS_PER_SECOND / 50;
-static uint64_t frame_host_start = 0;   /* host counter at the last sync */
+static uint64_t frame_host_start = 0; /* host counter at the last sync */
 
 /* IPC time that corresponds to the current 68008 cycle. At unlimited speed
  * the 68008 cycles say nothing about time, so the 8049 follows the host
@@ -69,7 +69,8 @@ static uint64_t ipc_target(void)
 	} else {
 		uint64_t freq = SDL_GetPerformanceFrequency();
 		dt = (SDL_GetPerformanceCounter() - frame_host_start) *
-		     (UNITS_PER_SECOND / 1000u) / (freq / 1000u ? freq / 1000u : 1);
+		     (UNITS_PER_SECOND / 1000u) /
+		     (freq / 1000u ? freq / 1000u : 1);
 		if (dt > frame_units)
 			dt = frame_units;
 	}
@@ -77,16 +78,16 @@ static uint64_t ipc_target(void)
 }
 
 /* ZX8302 side of the link */
-static uint8_t  comdata_reg = 0x0f;      /* line released: idle high */
-static uint8_t  ipc_busy = 0;
-static uint8_t  comdata_to_cpu = 1;
+static uint8_t comdata_reg = 0x0f; /* line released: idle high */
+static uint8_t ipc_busy = 0;
+static uint8_t comdata_to_cpu = 1;
 
-static int      ipl_lines = 3;           /* P2.2, P2.3: 1 = inactive */
+static int ipl_lines = 3; /* P2.2, P2.3: 1 = inactive */
 
 /* HW_TRACE: link bits and notes started since the last report */
 static unsigned trace_bits = 0;
 static unsigned trace_notes = 0;
-static uint64_t speaker_last_edge = 0;   /* 8049 time of the last toggle */
+static uint64_t speaker_last_edge = 0; /* 8049 time of the last toggle */
 
 static uint64_t trace_units0 = 0;
 static uint32_t trace_host0 = 0;
@@ -96,13 +97,13 @@ static uint32_t trace_host0 = 0;
  * frame): 4 bits of order, then its parameters (bits sent by the 68008) and
  * its answer (bits returned by the 8049), with the length of each order.
  * Sound orders (10) are printed with their 8 parameter bytes. */
-static int      trace_level = 0;
-static int      pr_state = 0;            /* 0 order, 1 parameters, 2 answer */
-static int      pr_cmd = 0, pr_stage = 0;
-static int      pr_need = 4, pr_have = 0;
+static int trace_level = 0;
+static int pr_state = 0; /* 0 order, 1 parameters, 2 answer */
+static int pr_cmd = 0, pr_stage = 0;
+static int pr_need = 4, pr_have = 0;
 static uint32_t pr_acc = 0;
-static uint8_t  pr_param[8];
-static int      pr_prev_sent = -1;       /* bit of the previous transaction */
+static uint8_t pr_param[8];
+static int pr_prev_sent = -1; /* bit of the previous transaction */
 
 void ipc_lle_set_trace(int level)
 {
@@ -115,7 +116,7 @@ static void pr_expect(int state, int bits)
 	pr_need = bits;
 	pr_have = 0;
 	pr_acc = 0;
-	if (!bits) {                    /* nothing more: next order */
+	if (!bits) { /* nothing more: next order */
 		pr_state = 0;
 		pr_need = 4;
 	}
@@ -126,23 +127,41 @@ static void pr_order(void)
 	pr_cmd = (int)pr_acc;
 	pr_stage = 0;
 	switch (pr_cmd) {
-	case 1:  pr_expect(2, 8);  break;       /* status */
+	case 1:
+		pr_expect(2, 8);
+		break; /* status */
 	case 6:
-	case 7:  pr_expect(2, 8);  break;       /* serial data: count first */
-	case 8:  pr_expect(2, 4);  break;       /* keyboard: count first */
-	case 9:  pr_expect(1, 4);  break;       /* KEYROW: row, then answer */
-	case 10: pr_expect(1, 64); break;       /* sound */
-	case 11:                                /* kill sound */
+	case 7:
+		pr_expect(2, 8);
+		break; /* serial data: count first */
+	case 8:
+		pr_expect(2, 4);
+		break; /* keyboard: count first */
+	case 9:
+		pr_expect(1, 4);
+		break; /* KEYROW: row, then answer */
+	case 10:
+		pr_expect(1, 64);
+		break; /* sound */
+	case 11: /* kill sound */
 		printf("IPC KILL SOUND at %.3f s\n",
 		       ipc_units / (double)UNITS_PER_SECOND);
 		fflush(stdout);
 		pr_expect(0, 0);
 		break;
 	case 12:
-	case 13: pr_expect(1, 4);  break;       /* one nibble parameter */
-	case 14: pr_expect(2, 16); break;       /* random number */
-	case 15: pr_expect(1, 8);  break;       /* test: byte, then answer */
-	default: pr_expect(0, 0);  break;
+	case 13:
+		pr_expect(1, 4);
+		break; /* one nibble parameter */
+	case 14:
+		pr_expect(2, 16);
+		break; /* random number */
+	case 15:
+		pr_expect(1, 8);
+		break; /* test: byte, then answer */
+	default:
+		pr_expect(0, 0);
+		break;
 	}
 }
 
@@ -150,18 +169,18 @@ static void pr_done(void)
 {
 	int i;
 
-	if (pr_state == 1) {                    /* parameters complete */
+	if (pr_state == 1) { /* parameters complete */
 		if (pr_cmd == 10) {
 			printf("IPC BEEP at %.3f s: %02X %02X %02X %02X %02X %02X "
 			       "%02X %02X (pitch %u, pitch 2 %u, interval %u, "
 			       "duration %u, step/wrap %02X, fuzzy/random %02X)\n",
 			       ipc_units / (double)UNITS_PER_SECOND,
-			       pr_param[0], pr_param[1], pr_param[2], pr_param[3],
-			       pr_param[4], pr_param[5], pr_param[6], pr_param[7],
-			       pr_param[0], pr_param[1],
-			       pr_param[2] | (pr_param[3] << 8),
-			       pr_param[4] | (pr_param[5] << 8),
-			       pr_param[6], pr_param[7]);
+			       pr_param[0], pr_param[1], pr_param[2],
+			       pr_param[3], pr_param[4], pr_param[5],
+			       pr_param[6], pr_param[7], pr_param[0],
+			       pr_param[1], pr_param[2] | (pr_param[3] << 8),
+			       pr_param[4] | (pr_param[5] << 8), pr_param[6],
+			       pr_param[7]);
 			fflush(stdout);
 			pr_expect(0, 0);
 		} else if (pr_cmd == 9 || pr_cmd == 15) {
@@ -172,7 +191,7 @@ static void pr_done(void)
 		return;
 	}
 	/* answer complete */
-	if (pr_cmd == 8 && pr_stage == 0) {     /* keys: 4 + 8 bits each */
+	if (pr_cmd == 8 && pr_stage == 0) { /* keys: 4 + 8 bits each */
 		pr_stage = 1;
 		pr_expect(2, (int)(pr_acc & 7) * 12);
 	} else if ((pr_cmd == 6 || pr_cmd == 7) && pr_stage == 0) {
@@ -191,7 +210,9 @@ static void pr_feed(int sent, int received)
 
 	if (pr_state == 1 && pr_cmd == 10 && pr_have < 64) {
 		int k = pr_have >> 3;
-		pr_param[k] = (uint8_t)((pr_have & 7) ? (pr_param[k] << 1) | bit : bit);
+		pr_param[k] =
+			(uint8_t)((pr_have & 7) ? (pr_param[k] << 1) | bit :
+						  bit);
 	}
 	pr_acc = (pr_acc << 1) | (uint32_t)bit;
 	if (++pr_have < pr_need)
@@ -226,16 +247,16 @@ static unsigned baud = 9600;
 /* time and queued for the audio callback.                                  */
 /* ------------------------------------------------------------------------ */
 
-#define AUDIO_RING      16384            /* power of two */
-#define AUDIO_MAX_FILL  8192             /* samples dropped above this */
+#define AUDIO_RING 16384 /* power of two */
+#define AUDIO_MAX_FILL 8192 /* samples dropped above this */
 /* Fill level kept by the drift control: above the samples produced at once
  * per 50 Hz frame (882) plus one audio callback (512). */
-#define AUDIO_TARGET    1600
+#define AUDIO_TARGET 1600
 #ifndef AUDIO_MAX_DRIFT
-#define AUDIO_MAX_DRIFT 0.002            /* +-0.2 % read rate correction */
+#define AUDIO_MAX_DRIFT 0.002 /* +-0.2 % read rate correction */
 #endif
 #ifndef AUDIO_GAIN
-#define AUDIO_GAIN 60.0                  /* rate = 1 + dev / (target * gain) */
+#define AUDIO_GAIN 60.0 /* rate = 1 + dev / (target * gain) */
 #endif
 /* The fill level rises and falls at 50 Hz because each frame is emulated
  * at once; the drift control follows its average over about 0.5 s, so the
@@ -245,27 +266,27 @@ static unsigned baud = 9600;
 #endif
 #define AUDIO_AMPLITUDE 6000
 
-static int      audio_rate = 0;
+static int audio_rate = 0;
 static uint64_t units_per_sample = 0;
-static uint64_t sample_units = 0;        /* units accumulated in the sample */
-static double   sample_acc = 0.0;        /* integral of the filtered level */
+static uint64_t sample_units = 0; /* units accumulated in the sample */
+static double sample_acc = 0.0; /* integral of the filtered level */
 
 /* The speaker and its drive filter the square wave: two low-pass stages at
  * AUDIO_CUTOFF_HZ, applied at the resolution of the 8049 before sampling,
  * so that its harmonics above half the sample rate do not fold back
  * (aliasing, heard as a rough, "airy" tone). */
 #define AUDIO_CUTOFF_HZ 7000.0
-static double   lp1 = 0.0, lp2 = 0.0;
-static double   lp_tau_units = 1.0;      /* time constant in 1/165 MHz units */
-static double   lp_k1 = 0.0, lp_k2 = 0.0; /* exp(-t/tau) for 1 and 2 cycles */
-static uint8_t  speaker = 0;
-static int16_t  ring[AUDIO_RING];
+static double lp1 = 0.0, lp2 = 0.0;
+static double lp_tau_units = 1.0; /* time constant in 1/165 MHz units */
+static double lp_k1 = 0.0, lp_k2 = 0.0; /* exp(-t/tau) for 1 and 2 cycles */
+static uint8_t speaker = 0;
+static int16_t ring[AUDIO_RING];
 static volatile unsigned ring_wr = 0, ring_rd = 0;
-static double   ring_frac = 0.0;         /* fractional read position */
-static double   fill_avg = AUDIO_TARGET; /* averaged fill level */
-static int      playing = 0;
-static int16_t  last_out = 0;
-static double   hp_x = 0.0, hp_y = 0.0;  /* DC blocking filter state */
+static double ring_frac = 0.0; /* fractional read position */
+static double fill_avg = AUDIO_TARGET; /* averaged fill level */
+static int playing = 0;
+static int16_t last_out = 0;
+static double hp_x = 0.0, hp_y = 0.0; /* DC blocking filter state */
 
 static void audio_advance(uint64_t units)
 {
@@ -277,8 +298,9 @@ static void audio_advance(uint64_t units)
 	/* the pin does not change during one instruction of the 8049 */
 	x = speaker ? 1.0 : 0.0;
 	k = units == UNITS_PER_IPC_CYCLE ? lp_k1 :
-	    units == 2 * UNITS_PER_IPC_CYCLE ? lp_k2 :
-	    exp(-(double)units / lp_tau_units);
+	    units == 2 * UNITS_PER_IPC_CYCLE ?
+					   lp_k2 :
+					   exp(-(double)units / lp_tau_units);
 	lp1 = x + (lp1 - x) * k;
 	lp2 = lp1 + (lp2 - lp1) * k;
 
@@ -293,9 +315,9 @@ static void audio_advance(uint64_t units)
 		if (sample_units == units_per_sample) {
 			unsigned wr = ring_wr, rd = ring_rd;
 			if (((wr - rd) & (AUDIO_RING - 1)) < AUDIO_MAX_FILL) {
-				ring[wr & (AUDIO_RING - 1)] = (int16_t)(
-					AUDIO_AMPLITUDE * sample_acc /
-					(double)units_per_sample);
+				ring[wr & (AUDIO_RING - 1)] =
+					(int16_t)(AUDIO_AMPLITUDE * sample_acc /
+						  (double)units_per_sample);
 				ring_wr = (wr + 1) & (AUDIO_RING - 1);
 			}
 			sample_units = 0;
@@ -313,7 +335,8 @@ void ipc_lle_audio_init(int sample_rate)
 	sample_units = 0;
 	sample_acc = 0.0;
 	lp1 = lp2 = 0.0;
-	lp_tau_units = (double)UNITS_PER_SECOND / (2.0 * M_PI * AUDIO_CUTOFF_HZ);
+	lp_tau_units =
+		(double)UNITS_PER_SECOND / (2.0 * M_PI * AUDIO_CUTOFF_HZ);
 	lp_k1 = exp(-(double)UNITS_PER_IPC_CYCLE / lp_tau_units);
 	lp_k2 = exp(-2.0 * UNITS_PER_IPC_CYCLE / lp_tau_units);
 	ring_wr = ring_rd = 0;
@@ -344,13 +367,13 @@ void ipc_lle_audio_mix(int16_t *stream, int frames)
 			fill_avg = (double)fill;
 		}
 		if (playing && fill < 2)
-			playing = 0;            /* underrun: wait for the target */
+			playing = 0; /* underrun: wait for the target */
 
 		fill_avg += ((double)fill - fill_avg) / AUDIO_AVG_SAMPLES;
 
 		if (playing) {
 			double rate = 1.0 + (fill_avg - AUDIO_TARGET) /
-					    (AUDIO_TARGET * AUDIO_GAIN);
+						    (AUDIO_TARGET * AUDIO_GAIN);
 			int16_t s0 = ring[rd];
 			int16_t s1 = ring[(rd + 1) & (AUDIO_RING - 1)];
 			unsigned step;
@@ -375,8 +398,12 @@ void ipc_lle_audio_mix(int16_t *stream, int frames)
 
 		l = stream[2 * i] + (int32_t)y;
 		r = stream[2 * i + 1] + (int32_t)y;
-		stream[2 * i]     = (int16_t)(l > 32767 ? 32767 : l < -32768 ? -32768 : l);
-		stream[2 * i + 1] = (int16_t)(r > 32767 ? 32767 : r < -32768 ? -32768 : r);
+		stream[2 * i] = (int16_t)(l > 32767  ? 32767 :
+					  l < -32768 ? -32768 :
+						       l);
+		stream[2 * i + 1] = (int16_t)(r > 32767	 ? 32767 :
+					      r < -32768 ? -32768 :
+							   r);
 	}
 }
 
@@ -419,28 +446,28 @@ static void p2_out(void *ctx, uint8_t v)
 /* Keyboard matrix (see IPC_KEY_SPACING_CYCLES in ipc.h)                    */
 /* ------------------------------------------------------------------------ */
 
-#define KEYQ_LEN 128                     /* power of two */
+#define KEYQ_LEN 128 /* power of two */
 
 static struct {
-	uint8_t  code;
-	uint8_t  pressed;
-	uint32_t host_ms;                /* host time of the change */
+	uint8_t code;
+	uint8_t pressed;
+	uint32_t host_ms; /* host time of the change */
 } keyq[KEYQ_LEN];
 static volatile unsigned keyq_wr = 0, keyq_rd = 0;
-static uint8_t  matrix[8];               /* rows as read by the 8049 */
-static uint64_t key_next = 0;            /* earliest cycle for the next change */
+static uint8_t matrix[8]; /* rows as read by the 8049 */
+static uint64_t key_next = 0; /* earliest cycle for the next change */
 
 /* Host time <-> IPC time, set on every vertical sync */
 static uint32_t ref_host_ms = 0;
 static uint64_t ref_units = 0;
-static int      ref_valid = 0;
+static int ref_valid = 0;
 
 void ipc_lle_key(int code, int pressed)
 {
 	unsigned wr = keyq_wr;
 
 	if (((wr + 1) & (KEYQ_LEN - 1)) == keyq_rd)
-		return;                         /* queue full: drop */
+		return; /* queue full: drop */
 	keyq[wr].code = (uint8_t)(code & 0x3f);
 	keyq[wr].pressed = (uint8_t)(pressed ? 1 : 0);
 	keyq[wr].host_ms = SDL_GetTicks();
@@ -460,8 +487,10 @@ static void key_apply(uint64_t now)
 		if (ref_valid) {
 			/* one frame late: a change made while the emulator waited
 			 * for this frame falls within it, at the same offset */
-			int64_t dt = (int64_t)(int32_t)(keyq[rd].host_ms - ref_host_ms) *
-				     (int64_t)UNITS_PER_MS + (int64_t)frame_units;
+			int64_t dt = (int64_t)(int32_t)(keyq[rd].host_ms -
+							ref_host_ms) *
+					     (int64_t)UNITS_PER_MS +
+				     (int64_t)frame_units;
 			if (dt < 0)
 				dt = 0;
 			t = ref_units + (uint64_t)dt;
@@ -476,12 +505,13 @@ static void key_apply(uint64_t now)
 		 * host keyboard happens all the time when typing fast. Release
 		 * the held keys first (they have already been accepted); the
 		 * modifier changes on the next step. */
-		if (code <= 2 && ((matrix[7] & 0xf8) || matrix[0] || matrix[1] ||
-				  matrix[2] || matrix[3] || matrix[4] ||
-				  matrix[5] || matrix[6])) {
+		if (code <= 2 && ((matrix[7] & 0xf8) || matrix[0] ||
+				  matrix[1] || matrix[2] || matrix[3] ||
+				  matrix[4] || matrix[5] || matrix[6])) {
 			matrix[7] &= 0x07;
 			memset(matrix, 0, 7);
-			key_next = t + (uint64_t)IPC_KEY_MIN_SPACING_MS * UNITS_PER_MS;
+			key_next = t + (uint64_t)IPC_KEY_MIN_SPACING_MS *
+					       UNITS_PER_MS;
 			continue;
 		}
 
@@ -511,7 +541,9 @@ static uint8_t bus_in(void *ctx)
 
 static void movx_wr(void *ctx, uint8_t addr, uint8_t v)
 {
-	(void)ctx; (void)addr; (void)v;
+	(void)ctx;
+	(void)addr;
+	(void)v;
 
 	/* COMCTL pulse: latch COMDATA (wired AND of both sides), shift the bits
 	 * towards the IPC and clear one busy bit */
@@ -530,14 +562,15 @@ static int t1_in(void *ctx)
 
 void ipc_lle_set_baud(uint8_t ctrl)
 {
-	static const unsigned rates[8] = { 19200, 9600, 4800, 2400, 1200, 600, 300, 75 };
+	static const unsigned rates[8] = { 19200, 9600, 4800, 2400,
+					   1200,  600,	300,  75 };
 	baud = rates[ctrl & 7];
 }
 
 static int int_in(void *ctx)
 {
 	(void)ctx;
-	return 1;                       /* INT not asserted */
+	return 1; /* INT not asserted */
 }
 
 /* ------------------------------------------------------------------------ */
@@ -557,7 +590,8 @@ static int load_firmware(const char *path)
 	memset(rom, 0, sizeof(rom));
 
 	for (i = 0; i < len && (file[i] == ' ' || file[i] == '\r' ||
-				file[i] == '\n' || file[i] == '\t'); i++)
+				file[i] == '\n' || file[i] == '\t');
+	     i++)
 		;
 	if (i < len && file[i] == ':') {
 		/* Intel HEX: data records only */
@@ -566,10 +600,12 @@ static int load_firmware(const char *path)
 		while ((p = strchr(p, ':')) != NULL) {
 			unsigned rl, addr, type, k, v;
 
-			if (sscanf(p + 1, "%2x%4x%2x", &rl, &addr, &type) == 3 &&
+			if (sscanf(p + 1, "%2x%4x%2x", &rl, &addr, &type) ==
+				    3 &&
 			    type == 0) {
 				for (k = 0; k < rl; k++) {
-					if (sscanf(p + 9 + 2 * k, "%2x", &v) != 1)
+					if (sscanf(p + 9 + 2 * k, "%2x", &v) !=
+					    1)
 						break;
 					if (addr + k < sizeof(rom)) {
 						rom[addr + k] = (uint8_t)v;
@@ -613,7 +649,8 @@ int ipc_lle_init(const char *hex_path)
 
 	bytes = load_firmware(hex_path);
 	if (bytes <= 0) {
-		fprintf(stderr, "IPC_ROM: cannot read %s, using the high level IPC\n",
+		fprintf(stderr,
+			"IPC_ROM: cannot read %s, using the high level IPC\n",
 			hex_path);
 		return 0;
 	}
@@ -708,7 +745,7 @@ void ipc_lle_write_comdata(uint8_t d)
 		pr_prev_sent = (d >> 1) & 1;
 	}
 	comdata_reg = d & 0x0f;
-	ipc_busy = 3;                   /* busy until COMCTL pulses twice */
+	ipc_busy = 3; /* busy until COMCTL pulses twice */
 }
 
 uint8_t ipc_lle_status(void)

@@ -34,8 +34,8 @@
  * loses the same share of time whichever part of the frame it runs in, so
  * the frame interrupt, which runs during the top border, does not leave the
  * rest of the program with the most contended lines. */
-#define ZX_CHUNKS_VIDEO   28    /* busy chunks in a visible line */
-#define ZX_CHUNKS_REFRESH 27    /* busy chunks in a non visible line */
+#define ZX_CHUNKS_VIDEO 28 /* busy chunks in a visible line */
+#define ZX_CHUNKS_REFRESH 27 /* busy chunks in a non visible line */
 #define ZX_CPU_ACCESS     4     /* byte access without wait states */
 #define ZX_READ_DECIDE    2     /* cycle of the access at which the ZX8301 decides (read) */
 #define ZX_WRITE_DECIDE   3     /* ... and on a write (DS one cycle later) */
@@ -47,7 +47,8 @@
 /* Lines from the frame interrupt to the first visible line. Calibrated
  * against raster timed demos that run correctly on a real QL: all of them
  * work between 35 and 37, so the default is the centre of that range. */
-#define ZX_PAL_FIRST      41    /* lines from the frame interrupt to the first visible line: 6 of vertical sync + 35 of top border */
+#define ZX_PAL_FIRST                                                           \
+	41 /* lines from the frame interrupt to the first visible line: 6 of vertical sync + 35 of top border */
 #define ZX_PAL_LINE_CYC   480
 #define ZX_NTSC_LINES     262
 #define ZX_NTSC_FIRST     4
@@ -57,9 +58,9 @@
  * 19.968 ms (50.08 Hz) or 262 x 63.2 us = 16.558 ms (60.39 Hz). At SPEED = 1
  * a PAL frame is 149760 cycles of the 68008. */
 #define ZX_PAL_LINE_PX    672
-#define ZX_PAL_FRAME_PX   (ZX_PAL_LINES * ZX_PAL_LINE_PX)
+#define ZX_PAL_FRAME_PX (ZX_PAL_LINES * ZX_PAL_LINE_PX)
 #define ZX_NTSC_LINE_PX   664
-#define ZX_NTSC_FRAME_PX  (ZX_NTSC_LINES * ZX_NTSC_LINE_PX)
+#define ZX_NTSC_FRAME_PX (ZX_NTSC_LINES * ZX_NTSC_LINE_PX)
 
 #define ZX_SPEED_NATIVE   20    /* speed = SPEED * 20 -> SPEED = 1 */
 
@@ -70,7 +71,7 @@ int zx_contention = 0;
  * its timing in real time: with a faster CPU each of its chunks lasts more
  * CPU cycles, with a slower one fewer. */
 static int zx_speed = ZX_SPEED_NATIVE;
-uint64_t zx8301_wait_total = 0;          /* wait states added (HW_TRACE) */
+uint64_t zx8301_wait_total = 0; /* wait states added (HW_TRACE) */
 
 static int      zx_contention_cfg = 0;
 static unsigned zx_hz = 50;
@@ -119,8 +120,14 @@ uint64_t zx8301_px_cycles(uint64_t frame_len, uint64_t px)
 {
 	return frame_len * px / zx_frame_px;
 }
-unsigned zx8301_frame_cycles(void)  { return zx_nlines * zx_line_cyc; }
-unsigned zx8301_speed_unit(void)    { return zx8301_frame_cycles() / ZX_SPEED_NATIVE; }
+unsigned zx8301_frame_cycles(void)
+{
+	return zx_nlines * zx_line_cyc;
+}
+unsigned zx8301_speed_unit(void)
+{
+	return zx8301_frame_cycles() / ZX_SPEED_NATIVE;
+}
 
 /* Cycles of the 68008 in one frame at a given speed (SPEED * 20) */
 uint64_t zx8301_frame_budget(int speed)
@@ -171,9 +178,9 @@ static int zx_could_start_scaled(uint64_t c)
 	n0 = (c - zx_frame) * ZX_SPEED_NATIVE / (uint64_t)zx_speed;
 	line = n0 / zx_line_cyc;
 	pos = n0 % zx_line_cyc;
-	busy = (line >= zx_first && line < zx_first + ZX_VISIBLE_LINES)
-		       ? ZX_CHUNKS_VIDEO
-		       : ZX_CHUNKS_REFRESH;
+	busy = (line >= zx_first && line < zx_first + ZX_VISIBLE_LINES) ?
+		       ZX_CHUNKS_VIDEO :
+		       ZX_CHUNKS_REFRESH;
 	if (pos >= busy * ZX_CHUNK_CYCLES || (pos % ZX_CHUNK_CYCLES) == 0)
 		return 1;
 	/* Slower CPU: one of its cycles spans several cycles of a QL, and a
@@ -209,7 +216,7 @@ static unsigned zx_wait(uint64_t t, int is_write)
 	uint64_t c = t + (is_write ? ZX_WRITE_DECIDE : ZX_READ_DECIDE);
 	unsigned wait = is_write ? 1 : 0;       /* late DS on writes */
 
-	while (!zx_could_start(c)) {    /* at most one chunk */
+	while (!zx_could_start(c)) { /* at most one chunk */
 		c++;
 		wait++;
 	}

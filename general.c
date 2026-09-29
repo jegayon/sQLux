@@ -163,7 +163,7 @@ w8 ReadRTClock(w32 addr)
 unsigned hw_trace_irq_taken[8];
 static int hw_trace = -1;
 static unsigned hwt_frames, hwt_ack[5], hwt_r18020, hwt_w18002, hwt_w18003,
-		hwt_w18022;
+	hwt_w18022;
 static uint64_t hwt_cycles0, hwt_wait0;
 static uint64_t hwt_late_sum, hwt_late_max;
 static unsigned hwt_late_n;
@@ -212,7 +212,8 @@ static void hw_trace_profile(void)
 	for (k = 0; k < 6; k++) {
 		int best = -1;
 		for (i = 0; i < HWT_PAGES; i++)
-			if (hwt_page[i] && (best < 0 || hwt_page[i] > hwt_page[best]))
+			if (hwt_page[i] &&
+			    (best < 0 || hwt_page[i] > hwt_page[best]))
 				best = i;
 		if (best < 0)
 			break;
@@ -224,7 +225,7 @@ static void hw_trace_profile(void)
 	memset(hwt_page, 0, sizeof(hwt_page));
 	hwt_user = hwt_super = 0;
 }
-extern uint64_t zx8301_wait_total;       /* zx8301.c */
+extern uint64_t zx8301_wait_total; /* zx8301.c */
 extern volatile bool is_display_blank;
 
 static void hw_trace_frame(void)
@@ -251,13 +252,15 @@ static void hw_trace_frame(void)
 		       "(host %u ms) | CPU %llu cycles, contention %.1f %%%s | "
 		       "VSYNC late avg %llu max %llu cycles\n",
 		       hwt_frames, hw_trace_irq_taken[2], hw_trace_irq_taken[5],
-		       hw_trace_irq_taken[7], hwt_ack[3], hwt_ack[0], hwt_ack[1],
-		       hwt_ack[2], hwt_ack[4], hwt_r18020, hwt_w18002, hwt_w18003,
-		       hwt_w18022, bits, notes, ipc_ms, host_ms,
-		       (unsigned long long)cyc,
+		       hw_trace_irq_taken[7], hwt_ack[3], hwt_ack[0],
+		       hwt_ack[1], hwt_ack[2], hwt_ack[4], hwt_r18020,
+		       hwt_w18002, hwt_w18003, hwt_w18022, bits, notes, ipc_ms,
+		       host_ms, (unsigned long long)cyc,
 		       cyc ? 100.0 * (double)wait / (double)cyc : 0.0,
 		       is_display_blank ? " (display off)" : "",
-		       (unsigned long long)(hwt_late_n ? hwt_late_sum / hwt_late_n : 0),
+		       (unsigned long long)(hwt_late_n ?
+						    hwt_late_sum / hwt_late_n :
+						    0),
 		       (unsigned long long)hwt_late_max);
 		hwt_late_sum = hwt_late_max = 0;
 		hwt_late_n = 0;
@@ -280,7 +283,7 @@ static void hw_trace_frame(void)
  * been cleared (a level, not an event), 5 or 7 when the IPC asks for them.
  * Level 7 (non maskable) is edge triggered: it is taken once per assertion.
  */
-static int ipc_ipl_lines = 3;           /* bit 0 = P2.2, bit 1 = P2.3; 1 = inactive */
+static int ipc_ipl_lines = 3; /* bit 0 = P2.2, bit 1 = P2.3; 1 = inactive */
 static int nmi_taken = 0;
 
 void ql_update_ipl(void)
@@ -476,7 +479,7 @@ void WriteHWByte(aw32 addr, aw8 d)
 		if (ipc_lle_active())
 			ipc_lle_write_comdata(d);
 		else
-		ipc_write(d);
+			ipc_write(d);
 		break;
 	case 0x018020:
 		mdv_sync();

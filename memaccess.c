@@ -19,9 +19,11 @@
 /* Screen capture: the line the beam is scanning (SDL2screen.c) */
 extern uint32_t snap_hot_lo, snap_hot_hi;
 void QLSDLScreenWrite(uint32_t addr, unsigned n);
-#define SCREEN_WRITE(addr, n) \
-	do { if ((addr) < snap_hot_hi && (addr) + (n) > snap_hot_lo) \
-		QLSDLScreenWrite((addr), (n)); } while (0)
+#define SCREEN_WRITE(addr, n)                                                  \
+	do {                                                                   \
+		if ((addr) < snap_hot_hi && (addr) + (n) > snap_hot_lo)        \
+			QLSDLScreenWrite((addr), (n));                         \
+	} while (0)
 
 static int is_hw(uint32_t addr)
 {

@@ -1081,7 +1081,7 @@ void clr_w(void)
 
 	if (mode >= 2) {
 		w32 ea = clr_ea(mode, r, 2);
-		ReadWord(ea);           /* raises the address error if odd */
+		ReadWord(ea); /* raises the address error if odd */
 		if ((ea & 1) == 0)
 			WriteWord(ea, 0);
 	} else
@@ -1097,7 +1097,7 @@ void clr_l(void)
 
 	if (mode >= 2) {
 		w32 ea = clr_ea(mode, r, 4);
-		ReadLong(ea);           /* raises the address error if odd */
+		ReadLong(ea); /* raises the address error if odd */
 		if ((ea & 1) == 0)
 			WriteLong(ea, 0);
 	} else
