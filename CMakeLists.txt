@@ -226,3 +226,30 @@ endif()
 unset(SUPPORT_SHADERS CACHE)
 
 install(TARGETS sqlux DESTINATION ${CMAKE_INSTALL_PREFIX}/bin/)
+
+# Optional tool: run the Tom Harte 68000 tests (SingleStepTests/680x0) on the
+# CPU core and compare registers, flags and memory.
+# Build it with: cmake --build build --target validate_ops
+find_package(ZLIB)
+if(ZLIB_FOUND)
+  # memaccess.c without the ROM protection: the tests use all 16 MB as RAM
+  file(READ ${CMAKE_CURRENT_SOURCE_DIR}/memaccess.c VALIDATE_OPS_MEM)
+  string(REPLACE "addr >= QL_SCREEN_BASE" "1 /* validate_ops: all RAM */"
+         VALIDATE_OPS_MEM "${VALIDATE_OPS_MEM}")
+  file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/memaccess_ops.c "${VALIDATE_OPS_MEM}")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS memaccess.c)
+
+  add_executable(validate_ops EXCLUDE_FROM_ALL
+    tools/validate_ops.c
+    instructions_ao.c
+    instructions_pz.c
+    iexl_general.c
+    Init.c
+    cycles68k.c
+    mmodes.c
+    ${CMAKE_CURRENT_BINARY_DIR}/memaccess_ops.c)
+  target_link_libraries(validate_ops ZLIB::ZLIB)
+  if(MINGW)
+    target_link_options(validate_ops PRIVATE -mconsole)
+  endif()
+endif()
