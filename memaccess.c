@@ -12,6 +12,8 @@
 #include "qsound.h"
 #include "zx8301.h"
 
+extern rw16 saved_sr;
+
 /* ZX8301 contention on the internal RAM (see zx8301.c) */
 #define ZX_CONTEND(addr, n, w) \
 	do { if (zx_contention && zx8301_is_ram(addr)) zx8301_ram((n), (w)); } while (0)
@@ -76,6 +78,18 @@ rw8 ReadByte(aw32 addr)
 
 rw16 ReadWord(aw32 addr)
 {
+	if ((addr & 1) != 0) {
+		saved_sr = GetSR();
+		exception = 3;
+		extraFlag = true;
+		nInst2 = nInst;
+		nInst = 0;
+		readOrWrite = 16;
+		badAddress = addr;
+		badCodeAddress = false;
+		return 0;
+	}
+
 	addr &= ADDR_MASK;
 
 	// QSound register read hook
@@ -103,6 +117,18 @@ rw16 ReadWord(aw32 addr)
 
 rw32 ReadLong(aw32 addr)
 {
+	if ((addr & 1) != 0) {
+		saved_sr = GetSR();
+		exception = 3;
+		extraFlag = true;
+		nInst2 = nInst;
+		nInst = 0;
+		readOrWrite = 16;
+		badAddress = addr;
+		badCodeAddress = false;
+		return 0;
+	}
+
 	addr &= ADDR_MASK;
 
 	if (is_qsound(addr)) {
@@ -153,6 +179,18 @@ void WriteByte(aw32 addr, aw8 d)
 
 void WriteWord(aw32 addr,aw16 d)
 {
+	if ((addr & 1) != 0) {
+		saved_sr = GetSR();
+		exception = 3;
+		extraFlag = true;
+		nInst2 = nInst;
+		nInst = 0;
+		readOrWrite = 0;
+		badAddress = addr;
+		badCodeAddress = false;
+		return;
+	}
+
 	addr &= ADDR_MASK;
 
 	if (is_qsound(addr)) {
@@ -175,6 +213,18 @@ void WriteWord(aw32 addr,aw16 d)
 
 void WriteLong(aw32 addr,aw32 d)
 {
+	if ((addr & 1) != 0) {
+		saved_sr = GetSR();
+		exception = 3;
+		extraFlag = true;
+		nInst2 = nInst;
+		nInst = 0;
+		readOrWrite = 0;
+		badAddress = addr;
+		badCodeAddress = false;
+		return;
+	}
+
 	addr &= ADDR_MASK;
 
 	if (is_qsound(addr)) {
@@ -341,10 +391,9 @@ rw16 ModifyAtEA_w(ashort mode,ashort r)
 		}
 		break;
 	}
-	addr &= ADDR_MASK;
 
 	lastAddr = addr;
-	dest = (Ptr)memBase + addr;
+	dest = (Ptr)memBase + (addr & ADDR_MASK);
 	return ReadWord(addr);
 }
 
@@ -411,15 +460,16 @@ rw32 ModifyAtEA_l(ashort mode, ashort r)
 		break;
 	}
 
-	addr &= ADDR_MASK;
-
 	lastAddr = addr;
-	dest = (Ptr)memBase + addr;
+	dest = (Ptr)memBase + (addr & ADDR_MASK);
 	return ReadLong(addr);
 }
 
 void RewriteEA_b(aw8 d)
 {
+	if (exception)
+		return;
+
 	if (isreg)
 		*((w8*)dest)=d;
 	else {
@@ -429,6 +479,9 @@ void RewriteEA_b(aw8 d)
 
 void RewriteEA_w(aw16 d)
 {
+	if (exception)
+		return;
+
 	if (isreg) {
 		*((w16*)dest)=d;
 	} else {
@@ -438,6 +491,9 @@ void RewriteEA_w(aw16 d)
 
 void RewriteEA_l(aw32 d)
 {
+	if (exception)
+		return;
+
 	if (isreg) {
 		*((w32*)dest)=d;
 	} else {
