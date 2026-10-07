@@ -30,14 +30,17 @@ uint8_t ipc_lle_status(void);                   /* $18020 bits 7 and 6 */
 void    ipc_lle_set_baud(uint8_t ctrl);         /* write to $18002 */
 
 /* Keyboard matrix. The host keyboard handling queues every change of a key
- * (QL key code 0-63; SHIFT, CTRL and ALT are codes 0, 1 and 2 of row 7)
- * together with the host time at which it happened. The emulator runs each
- * frame in a single burst and then waits for the next one, so the host time
- * of every change is mapped onto the next frame of the IPC clock (one frame
- * of latency): the 8049 sees each key held for as long as it really was, and
- * never two changes in the same scan, which the original firmware ignores.
- * Consecutive changes are kept at least IPC_KEY_MIN_SPACING_MS apart (enough
- * for the firmware to tell a modifier from the key that follows it). */
+ * (QL key code 0-63; SHIFT, CTRL and ALT are codes 0, 1 and 2 of row 7).
+ * The emulator runs each frame in a single burst and then waits for the next
+ * one, so for the QL no time passes while the host waits: the changes made
+ * meanwhile enter the matrix as soon as the 8049 runs again, at the start of
+ * the next burst (QLRun waits just before the frame interrupt, so that this
+ * is when the keyboard is about to be polled). A key is therefore seen from
+ * the first instant the emulated machine could see it, and held for as long
+ * as it really was to the nearest frame. Consecutive changes are kept at
+ * least IPC_KEY_MIN_SPACING_MS apart, as the original firmware ignores two
+ * changes in the same scan and needs that long to tell a modifier from the
+ * key that follows it. */
 #define IPC_KEY_MIN_SPACING_MS  2
 void    ipc_lle_key(int code, int pressed);     /* host thread */
 

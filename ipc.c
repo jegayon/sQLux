@@ -424,7 +424,6 @@ static void p2_out(void *ctx, uint8_t v)
 static struct {
 	uint8_t  code;
 	uint8_t  pressed;
-	uint32_t host_ms;                /* host time of the change */
 } keyq[KEYQ_LEN];
 static volatile unsigned keyq_wr = 0, keyq_rd = 0;
 static uint8_t  matrix[8];               /* rows as read by the 8049 */
@@ -437,10 +436,6 @@ static uint64_t key_next = 0;            /* earliest cycle for the next change *
 #define IPC_KEY_MIN_HOLD_MS 40
 static uint64_t key_down_at[64];         /* when each key entered the matrix */
 
-/* Host time <-> IPC time, set on every vertical sync */
-static uint32_t ref_host_ms = 0;
-static uint64_t ref_units = 0;
-static int      ref_valid = 0;
 
 void ipc_lle_key(int code, int pressed)
 {
@@ -450,7 +445,6 @@ void ipc_lle_key(int code, int pressed)
 		return;                         /* queue full: drop */
 	keyq[wr].code = (uint8_t)(code & 0x3f);
 	keyq[wr].pressed = (uint8_t)(pressed ? 1 : 0);
-	keyq[wr].host_ms = SDL_GetTicks();
 	keyq_wr = (wr + 1) & (KEYQ_LEN - 1);
 }
 
@@ -462,19 +456,9 @@ static void key_apply(uint64_t now)
 		int code = keyq[rd].code;
 		int row = 7 - code / 8;
 		uint8_t bit = (uint8_t)(1 << (code % 8));
-		uint64_t t = 0;
+		/* as soon as the 8049 runs again, after the previous change */
+		uint64_t t = key_next;
 
-		if (ref_valid) {
-			/* one frame late: a change made while the emulator waited
-			 * for this frame falls within it, at the same offset */
-			int64_t dt = (int64_t)(int32_t)(keyq[rd].host_ms - ref_host_ms) *
-				     (int64_t)UNITS_PER_MS + (int64_t)frame_units;
-			if (dt < 0)
-				dt = 0;
-			t = ref_units + (uint64_t)dt;
-		}
-		if (t < key_next)
-			t = key_next;
 		/* a release waits until the key has been held long enough */
 		if (!keyq[rd].pressed) {
 			uint64_t held = key_down_at[code] +
@@ -495,7 +479,7 @@ static void key_apply(uint64_t now)
 		} else
 			matrix[row] &= (uint8_t)~bit;
 		keyq_rd = (rd + 1) & (KEYQ_LEN - 1);
-		key_next = t + (uint64_t)IPC_KEY_MIN_SPACING_MS * UNITS_PER_MS;
+		key_next = now + (uint64_t)IPC_KEY_MIN_SPACING_MS * UNITS_PER_MS;
 	}
 }
 
@@ -644,7 +628,6 @@ int ipc_lle_init(const char *hex_path)
 	frame_start_units = 0;
 	frame_len_cycles = 150000;
 	frame_units = UNITS_PER_SECOND / 50;
-	ref_valid = 0;
 
 	lle_active = 1;
 	printf("IPC: low level emulation, firmware %s (%d bytes, CRC32 %08X), "
@@ -714,10 +697,6 @@ void ipc_lle_frame(uint64_t frame_cycles, unsigned native_cycles)
 	frame_units = (uint64_t)(native_cycles ? native_cycles : 149760) * 22u;
 	frame_len_cycles = frame_cycles;
 	frame_host_start = SDL_GetPerformanceCounter();
-
-	ref_host_ms = SDL_GetTicks();
-	ref_units = frame_start_units;
-	ref_valid = 1;
 }
 
 void ipc_lle_write_comdata(uint8_t d)
