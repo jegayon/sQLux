@@ -4,9 +4,10 @@
  * VERTICAL SYNC
  *   The frame interrupt always follows the real video signal (50 Hz PAL,
  *   60 Hz NTSC), paced by the host clock (Pulse50Thread). On every vertical
- *   sync FrameInt calls zx8301_frame(); from then on the beam position is
- *   obtained by counting emulated cycles. At SPEED = 1 a PAL frame lasts
- *   149760 cycles.
+ *   sync FrameInt calls zx8301_frame() with the exact cycle at which the
+ *   frame starts; from then on the beam position is obtained by counting
+ *   emulated cycles. At SPEED = 1 a PAL frame lasts 149760 cycles, and the
+ *   lines and chunks never move with respect to the clock of the 68008.
  *
  * MEMORY CONTENTION (at any speed except unlimited)
  *   Follows the slot mechanism of the ql_timing module of the MiSTer QL
@@ -48,6 +49,15 @@
  * real QL with the same copy loop: the contention of the visible lines
  * starts 32 lines after the interrupt and ends 256 lines later. */
 #define ZX_PAL_FIRST      32    /* lines from the frame interrupt to the first visible line */
+/* Cycles by which the chunks of the ZX8301 start before the frame does (the
+ * frame starts at the cycle of its interrupt, which the 68008 takes at the
+ * end of the instruction that is running). Measured against a real QL by
+ * trying every position, cycle by cycle, with five loops run with interrupts
+ * off from the start of a frame: copies, reads and writes of the RAM (2676,
+ * 1699 and 1774 counts on the QL) and the clearing and drawing of a scene of
+ * a demo (2298.2 and 1448). With 2 cycles they give 2676, 1699, 1775, 2298.6
+ * and 1449; with 1 the drawing takes 1452 and with 3 the copies 2651. */
+#define ZX_GRID_LEAD      2
 #define ZX_PAL_LINE_CYC   480
 #define ZX_NTSC_LINES     262
 #define ZX_NTSC_FIRST     4
@@ -138,7 +148,10 @@ uint64_t zx8301_line_time(uint64_t frame_start, uint64_t frame_len,
 
 void zx8301_frame(uint64_t now, int speed)
 {
-	zx_frame = now;
+	/* now is the exact cycle at which the frame starts (general.c) */
+	zx_frame = now - (speed > 0 ? (uint64_t)ZX_GRID_LEAD * (unsigned)speed /
+					      ZX_SPEED_NATIVE
+				    : 0);
 	zx_line_t0 = zx_line_t1 = 0;    /* force the line to be recomputed */
 	zx_speed = speed;
 	/* Contention at any speed except unlimited, where there is no real time

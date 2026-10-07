@@ -436,7 +436,6 @@ static uint64_t key_next = 0;            /* earliest cycle for the next change *
  * Wayland), so every key stays in the matrix for at least this long. */
 #define IPC_KEY_MIN_HOLD_MS 40
 static uint64_t key_down_at[64];         /* when each key entered the matrix */
-static uint64_t last_down_at = 0;        /* the most recent press */
 
 /* Host time <-> IPC time, set on every vertical sync */
 static uint32_t ref_host_ms = 0;
@@ -476,16 +475,9 @@ static void key_apply(uint64_t now)
 		}
 		if (t < key_next)
 			t = key_next;
-		/* a release waits until the key has been held long enough, and
-		 * so does a modifier change, which releases the held keys (below) */
+		/* a release waits until the key has been held long enough */
 		if (!keyq[rd].pressed) {
 			uint64_t held = key_down_at[code] +
-					(uint64_t)IPC_KEY_MIN_HOLD_MS * UNITS_PER_MS;
-			if (t < held)
-				t = held;
-		}
-		if (code <= 2) {
-			uint64_t held = last_down_at +
 					(uint64_t)IPC_KEY_MIN_HOLD_MS * UNITS_PER_MS;
 			if (t < held)
 				t = held;
@@ -493,26 +485,13 @@ static void key_apply(uint64_t now)
 		if (now < t)
 			break;
 
-		/* The original firmware loses keys when a modifier (SHIFT, CTRL,
-		 * ALT: codes 0-2) changes while another key is held, which on a
-		 * host keyboard happens all the time when typing fast. Release
-		 * the held keys first (they have already been accepted); the
-		 * modifier changes on the next step. */
-		if (code <= 2 && ((matrix[7] & 0xf8) || matrix[0] || matrix[1] ||
-				  matrix[2] || matrix[3] || matrix[4] ||
-				  matrix[5] || matrix[6])) {
-			matrix[7] &= 0x07;
-			memset(matrix, 0, 7);
-			key_next = t + (uint64_t)IPC_KEY_MIN_SPACING_MS * UNITS_PER_MS;
-			continue;
-		}
-
+		/* The matrix holds the keys really held, as on a QL: the firmware
+		 * scans them and a KEYROW order reads them as they are. */
 		if (keyq[rd].pressed) {
 			/* held from now on: if the host delivered the change late,
 			 * its own time is already past */
 			matrix[row] |= bit;
 			key_down_at[code] = now;
-			last_down_at = now;
 		} else
 			matrix[row] &= (uint8_t)~bit;
 		keyq_rd = (rd + 1) & (KEYQ_LEN - 1);
@@ -668,14 +647,32 @@ int ipc_lle_init(const char *hex_path)
 	ref_valid = 0;
 
 	lle_active = 1;
-	printf("IPC: low level emulation, firmware %s (%d bytes, CRC32 %08X)\n",
-	       hex_path, bytes, crc32_rom());
+	printf("IPC: low level emulation, firmware %s (%d bytes, CRC32 %08X), "
+	       "real keyboard matrix\n", hex_path, bytes, crc32_rom());
 	return 1;
 }
 
 int ipc_lle_active(void)
 {
 	return lle_active;
+}
+
+/* Reset of the QL: the reset line of the 8049 is the one of the 68008. The
+ * firmware starts again; the RAM of the 8049 keeps its contents, its ports
+ * float high (speaker silent, interrupt lines released) and the keys that
+ * are held down stay in the matrix, as on a QL. The clock of the IPC does not
+ * stop. */
+void ipc_lle_reset(void)
+{
+	if (!lle_active)
+		return;
+	ipc_lle_sync();
+	mcs48_reset(&ipc);
+	comdata_reg = 0x0f;
+	ipc_busy = 0;
+	comdata_to_cpu = 1;
+	pr_state = 0;
+	pr_prev_sent = -1;
 }
 
 static void run_until(uint64_t target)

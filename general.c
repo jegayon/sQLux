@@ -305,6 +305,23 @@ void ql_update_ipl(void)
 	}
 }
 
+/* Reset of the QL, ZX8302 side: no interrupt pending, the IPC link idle and
+ * the IPC itself (the 8049, or the high level one) started again. The ZX8301
+ * has no reset: its display register keeps its value until the ROM writes
+ * it, and the frame goes on. */
+static void ipc_hle_reset(void);
+extern void ipc_lle_reset(void);        /* ipc.c */
+
+void ql_hw_reset(void)
+{
+	theInt = 0;
+	nmi_taken = 0;
+	ipc_ipl_lines = 3;
+	ipc_hle_reset();
+	ipc_lle_reset();
+	ql_update_ipl();
+}
+
 /* The IPC changed its interrupt lines (P2.2 and P2.3) */
 void ql_set_ipc_ipl(int lines)
 {
@@ -334,10 +351,21 @@ void FrameInt(void)
 	// 7.5 MHz / hz cycles; at unlimited speed (speed = 0) the screen is
 	// copied at once.
 	extern void QLSDLFrameStart(uint64_t now, uint64_t frame_len);
+	extern uint64_t ql_frame_origin;        // unixstuff.c
 	uint64_t frame_cycles = speed ? zx8301_frame_budget(speed) : 0;
-	zx8301_frame(ql_cycles, speed);
+	// The frame of the ZX8301 begins at its exact cycle, not at the end
+	// of the instruction that was running (up to a hundred cycles or so
+	// later, and different in every frame): otherwise its lines and its
+	// chunks would move a little in every frame with respect to the CPU,
+	// which on a QL they never do. Only the interrupt waits for the end
+	// of the instruction.
+	uint64_t origin = ql_cycles;
+	if (speed && ql_frame_origin <= ql_cycles &&
+	    ql_cycles - ql_frame_origin <= zx8301_speed_unit())
+		origin = ql_frame_origin;
+	zx8301_frame(origin, speed);
 	ipc_lle_frame(frame_cycles, zx8301_frame_cycles());
-	QLSDLFrameStart(ql_cycles, frame_cycles);
+	QLSDLFrameStart(origin, frame_cycles);
 }
 
 void ql_trigger_gap_interrupt(void) {
@@ -373,6 +401,15 @@ static int ipc_return;
 static int ipc_count = 0;
 static int ipc_return;
 static uint32_t ipc_read;
+
+static void ipc_hle_reset(void)
+{
+	ipc_wait = 1;
+	ipc_rcvd = 1;
+	ipc_previous = 0x10;
+	ipc_count = 0;
+	ipc_read = 0;
+}
 
 void ipc_exec(int command)
 {
