@@ -38,10 +38,15 @@ void    ipc_lle_set_baud(uint8_t ctrl);         /* write to $18002 */
  * is when the keyboard is about to be polled). A key is therefore seen from
  * the first instant the emulated machine could see it, and held for as long
  * as it really was to the nearest frame. Consecutive changes are kept at
- * least IPC_KEY_MIN_SPACING_MS apart, as the original firmware ignores two
- * changes in the same scan and needs that long to tell a modifier from the
- * key that follows it. */
-#define IPC_KEY_MIN_SPACING_MS  2
+ * least IPC_KEY_MIN_SPACING_MS apart. The firmware only takes a key that
+ * has been the only one held (besides SHIFT, CTRL and ALT) for several
+ * scans in a row: about 2.5 ms for the Sinclair IPC, 6-8 ms for Hermes.
+ * Changes made while the host waited reach the 8049 together; were they
+ * closer than that, a key held alone for long enough on the host keyboard
+ * would be lost (fast typing, with the next key pressed before the last
+ * one is released). Kept in order and this far apart, a key is lost only
+ * when it was never the only one held, as on a QL. */
+#define IPC_KEY_MIN_SPACING_MS  10
 void    ipc_lle_key(int code, int pressed);     /* host thread */
 
 /* Vertical sync. The IPC has its own clock (11 MHz crystal): every frame

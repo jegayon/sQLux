@@ -416,7 +416,7 @@ static void p2_out(void *ctx, uint8_t v)
 }
 
 /* ------------------------------------------------------------------------ */
-/* Keyboard matrix (see IPC_KEY_SPACING_CYCLES in ipc.h)                    */
+/* Keyboard matrix (see IPC_KEY_MIN_SPACING_MS in ipc.h)                    */
 /* ------------------------------------------------------------------------ */
 
 #define KEYQ_LEN 128                     /* power of two */
