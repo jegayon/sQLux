@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - CPU: word and long accesses to odd addresses raise an address error, as on the 68000, and the PC stacked is the one after the instruction, so that QDOS goes on (the Quantum Leap demo froze at the end of its wipe effect). The rest of the exception frame is not exact yet
 - The ZX8301 starts each frame at its exact cycle instead of at the end of the instruction during which the frame interrupt arrives, so its lines and chunks do not move from frame to frame with respect to the CPU
 - The frame interrupt no longer writes to $280A0, a QDOS system variable that is also on screen 1 (a 2 byte glitch in demos that draw on screen 1)
+- `FAST_STARTUP = 0` lets Minerva test the RAM, as on a real QL: Minerva was always entered through its warm start
 - QSound: tone and noise generators follow jt49: a null period mutes the generator instead of producing the highest frequency, and the noise output has the polarity of the real chip
 
 ## 1.1.1 - 2025-03-12
